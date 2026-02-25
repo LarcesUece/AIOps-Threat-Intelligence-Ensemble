@@ -1,0 +1,14 @@
+__pycache__/
+.python-version
+__pypackages__/
+benchmark/
+data/
+logs/
+doc/
+.venv
+*.lock
+plot*.py
+bench*.py
+*2.py
+
+
