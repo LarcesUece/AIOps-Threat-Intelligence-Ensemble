@@ -1,5 +1,5 @@
-# AIOps-Threat-Intelligence-Ensemble
-
+# International Journal of Network Management (2026)
+## A Multi-Source Threat Intelligence Data Approach in AIOps for Adaptive Network Security
 ## Authors
 
 - Francisco V. J. Nobre
