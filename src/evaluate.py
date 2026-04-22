@@ -8,12 +8,42 @@ from sklearn.metrics import (
     brier_score_loss,
     classification_report,
     cohen_kappa_score,
+    confusion_matrix,
     f1_score,
     log_loss,
     matthews_corrcoef,
     precision_recall_fscore_support,
     roc_auc_score,
 )
+
+
+def _specificity_macro(y_true, y_pred):
+    """Compute specificity (TNR) using one-vs-rest per class, then macro-average.
+
+    For binary classification this reduces to TN/(TN+FP) for the negative class.
+    For multi-class classification it computes specificity per class (treating that
+    class as positive and the rest as negative) and returns the macro average.
+    """
+
+    cm = confusion_matrix(y_true, y_pred)
+    if cm.size == 0:
+        return np.nan
+
+    total = cm.sum()
+    n_classes = cm.shape[0]
+    if n_classes <= 1:
+        return np.nan
+
+    specificities = []
+    for i in range(n_classes):
+        tp = cm[i, i]
+        fn = cm[i, :].sum() - tp
+        fp = cm[:, i].sum() - tp
+        tn = total - tp - fn - fp
+        denom = tn + fp
+        specificities.append(tn / denom if denom > 0 else np.nan)
+
+    return float(np.nanmean(specificities))
 
 
 def evaluate_models(trained_models, X_test, y_test):
@@ -35,6 +65,7 @@ def evaluate_models(trained_models, X_test, y_test):
         "F1-Macro": [],
         "Precision": [],
         "Recall": [],
+        "Specificity": [],
         "Cohen_Kappa": [],
         "ROC_AUC": [],
         "Log_Loss": [],
@@ -66,6 +97,7 @@ def evaluate_models(trained_models, X_test, y_test):
         precision, recall, _, _ = precision_recall_fscore_support(
             y_test, y_pred, average="weighted"
         )
+        specificity = _specificity_macro(y_test, y_pred)
         cohen_kappa = cohen_kappa_score(y_test, y_pred)
         mcc = matthews_corrcoef(y_test, y_pred)
 
@@ -75,19 +107,17 @@ def evaluate_models(trained_models, X_test, y_test):
         metrics_dict["F1-Macro"].append(f1_macro)
         metrics_dict["Precision"].append(precision)
         metrics_dict["Recall"].append(recall)
+        metrics_dict["Specificity"].append(specificity)
         metrics_dict["Cohen_Kappa"].append(cohen_kappa)
         metrics_dict["MCC"].append(mcc)
 
         if y_pred_proba is not None and y_pred_proba.shape[1] > 1:
             try:
                 roc_auc = roc_auc_score(
-                    y_test, 
-                    y_pred_proba, 
-                    multi_class="ovr", 
-                    average="weighted"
+                    y_test, y_pred_proba, multi_class="ovr", average="weighted"
                 )
                 metrics_dict["ROC_AUC"].append(roc_auc)
-                
+
                 logloss = log_loss(y_test, y_pred_proba)
 
                 n_classes = y_pred_proba.shape[1]
@@ -104,9 +134,11 @@ def evaluate_models(trained_models, X_test, y_test):
 
             except Exception as e:
                 print(f"Warning: Log Loss or Brier Score failed for {name}: {e}")
+                metrics_dict["ROC_AUC"].append(np.nan)
                 metrics_dict["Log_Loss"].append(np.nan)
                 metrics_dict["Brier_Score"].append(np.nan)
         else:
+            metrics_dict["ROC_AUC"].append(np.nan)
             metrics_dict["Log_Loss"].append(np.nan)
             metrics_dict["Brier_Score"].append(np.nan)
             print(

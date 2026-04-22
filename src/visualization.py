@@ -190,8 +190,9 @@ def plot_metrics_comparison(metrics_df, images_dir):
         "pink",
         "olive",
         "cyan",
-        "gold",      
-        "teal"
+        "gold",
+        "teal",
+        "navy",
     ]
 
     model_labels = list(metrics_df.index)
@@ -521,6 +522,7 @@ def plot_metrics_tables(results, metrics_df, images_dir):
         "F1-Macro",
         "Precision",
         "Recall",
+        "Specificity",
         "Cohen_Kappa",
         "ROC_AUC",
         "Log_Loss",
@@ -536,6 +538,7 @@ def plot_metrics_tables(results, metrics_df, images_dir):
         "F1-Macro": ["F1-Macro"],
         "Precision": ["Precision", "Precisão"],
         "Recall": ["Recall"],
+        "Specificity": ["Specificity", "Especificidade"],
         "Cohen_Kappa": ["Cohen_Kappa", "Kappa de Cohen"],
         "ROC_AUC": ["ROC_AUC"],
         "Log_Loss": ["Log_Loss"],
@@ -567,7 +570,7 @@ def plot_metrics_tables(results, metrics_df, images_dir):
         colLabels=headers,
         cellLoc="center",
         loc="center",
-        colWidths=[0.1] + [0.070] * 12,
+        colWidths=[0.1] + [0.065] * 13,
     )
 
     table.auto_set_font_size(False)

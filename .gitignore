@@ -10,5 +10,7 @@ doc/
 plot*.py
 bench*.py
 *2.py
+X*.py
+*.png
 
 

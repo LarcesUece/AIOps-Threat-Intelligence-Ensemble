@@ -1,12 +1,14 @@
 import logging
 import os
 import pickle
+import subprocess
 import sys
 from datetime import datetime
 
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.metrics import accuracy_score
 
 current_dir = os.getcwd()
 if current_dir not in sys.path:
@@ -521,11 +523,71 @@ class IPClassificationPredictor:
             self.logger.error(f"Error during prediction: {e}")
             return {"error": str(e)}
 
+    def evaluate_and_monitor(self, ground_truth_df, threshold=0.92):
+        """
+        Monitors the accuracy of a data batch with ground-truth labels.
+        If it falls below the threshold, it triggers the AIOps cycle.
+        """
+
+        self.logger.info("Starting concept drift monitoring at the edge...")
+
+        predictions_dict = self.predict_classification(ground_truth_df)
+
+        if "error" in predictions_dict:
+            self.logger.error("Failed to predict the batch for monitoring.")
+            return None
+
+        y_true = []
+        y_pred = []
+
+        for ip, result in predictions_dict.items():
+            ip_row = ground_truth_df[ground_truth_df["ip"] == ip]
+            if not ip_row.empty and "classification" in ip_row.columns:
+                true_label = ip_row["classification"].values[0]
+                y_true.append(true_label)
+                y_pred.append(result["classification"])
+
+        if not y_true:
+            self.logger.warning("No ground-truth labels were found for evaluation.")
+            return None
+
+        current_accuracy = accuracy_score(y_true, y_pred)
+        self.logger.info(f"Current edge batch accuracy: {current_accuracy:.4f}")
+
+        if current_accuracy < threshold:
+            self.logger.warning(
+                f"[CONCEPT DRIFT] Accuracy ({current_accuracy:.4f}) is below the threshold of {threshold}!"
+            )
+            self._trigger_aiops_retraining()
+        else:
+            self.logger.info(
+                "Performance is stable. No AIOps intervention is required."
+            )
+
+        return current_accuracy
+
+    def _trigger_aiops_retraining(self):
+        """
+        Triggers the cloud retraining pipeline.
+        """
+        self.logger.info("Sending signal to the cloud: starting retraining...")
+        subprocess.run(["python", "ml_pipeline.py", "--use_smote", "True"], check=True)
+        self.logger.info(
+            "Retraining submitted. New model weights will be synchronized shortly."
+        )
+
 
 if __name__ == "__main__":
 
-    # Option 1: Single IP (must match the exact training dataset structure)
-    # Example dictionary for a single IP
+    # Initialize the predictor (the model deployed at the edge)
+    predictor = IPClassificationPredictor(MODELS_DIR, SCALER_PARAMS_FILE, MODEL_NAME)
+
+    # PHASE 1: REAL-TIME PREDICTION (Gateway simulation)
+    # The edge receives connections and must react quickly.
+
+    predictor.logger.info("=== PHASE 1: Receiving connections at the edge ===")
+
+    # Example: an unknown IP arrives without a classification label
     single_ip_data = {
         "ip": "192.168.1.100",
         "abuseipdb_confidence_score": 25,
@@ -540,17 +602,26 @@ if __name__ == "__main__":
         "virustotal_undetected": 25,
         "virustotal_suspicious": 0,
     }
-    
 
-    # Option 2: CSV file (must match training structure)
-    #csv_file_path = "consulta.csv"
-    #output_csv_path = "datasets/prediction_results.csv"
-
-    # Initialize predictor with selected model
-    predictor = IPClassificationPredictor(MODELS_DIR, SCALER_PARAMS_FILE, MODEL_NAME)
-
-    # For single IP:
+    # The edge performs a fast prediction to drive the block or allow action
     results = predictor.predict_classification(single_ip_data)
 
-    # For CSV file:
-    # results = predictor.predict_classification(csv_file_path, output_csv_path)
+    # PHASE 2: DRIFT EVALUATION (Asynchronous AIOps cycle simulation)
+    # This happens every X hours or every X thousand evaluated IPs.
+
+    predictor.logger.info("=== PHASE 2: Concept Drift Monitoring Routine ===")
+
+    # Simulate the edge sending a batch of recent IPs to the cloud,
+    # and the cloud returning this CSV with the 'classification' column filled in
+    # by multicriteria consensus as ground truth.
+
+    # Practical example: the script reads a newly labeled batch file from the cloud
+    evaluation_batch = "datasets/dataset_ip_classified.csv"
+
+    if os.path.exists(evaluation_batch):
+        batch_df = pd.read_csv(evaluation_batch).tail(500)
+        predictor.evaluate_and_monitor(ground_truth_df=batch_df, threshold=0.92)
+    else:
+        predictor.logger.warning(
+            f"Batch file {evaluation_batch} not found for drift evaluation."
+        )
